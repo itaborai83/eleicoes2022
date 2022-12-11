@@ -38,12 +38,12 @@ SELECT	a.ano_eleicao
 ,		e.dt_emissao_bu 
 ,		e.nr_junta_apuradora 
 ,		e.nr_turma_apuradora 
-FROM	stg_eleicao a
-,		stg_local b
-,		stg_participacao c
-,		stg_votavel d
-,		stg_urna e
-,		stg_voto f
+FROM	stg_eleicoes a
+,		stg_locais b
+,		stg_participacoes c
+,		stg_votaveis d
+,		stg_urnas e
+,		stg_votos f
 WHERE	b.nm_municipio 		= 'VITÓRIA'
 AND		f.eleicao_id		= a.id
 AND		f.local_id			= b.id
@@ -70,7 +70,7 @@ SELECT	a.ano_eleicao
 ,		a.qt_aptos
 ,		a.qt_comparecimento 
 ,		a.qt_abstencoes 
-,		COALESCE(a.nr_partido, -99) AS nr_partido
+,		COALESCE(a.nr_partido, 99) AS nr_partido
 ,		COALESCE(a.sg_partido, '<N/A>') AS sg_partido
 ,		COALESCE(a.nm_partido, '<N/A>') AS nm_partido
 ,		a.cd_tipo_votavel 
@@ -91,7 +91,7 @@ SELECT	a.ano_eleicao
 ,		a.dt_encerramento 
 ,		a.qt_eleitores_biometria_nh 
 ,		a.dt_emissao_bu 
-,		COALESCE(a.nr_junta_apuradora, -9999) AS nr_junta_apuradora 
-,		COALESCE(a.nr_turma_apuradora, -9999) AS nr_turma_apuradora
+,		COALESCE(a.nr_junta_apuradora, 9999) AS nr_junta_apuradora 
+,		COALESCE(a.nr_turma_apuradora, 9999) AS nr_turma_apuradora
 FROM	stg_boletim a
 WHERE	a.nm_municipio = 'VITÓRIA'
