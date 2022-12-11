@@ -50,11 +50,9 @@ AND		f.local_id			= b.id
 AND		f.participacao_id	= c.id
 AND		f.votavel_id		= d.id
 AND		f.urna_id			= e.id
-
 --
 EXCEPT
 --
-
 SELECT	a.ano_eleicao
 ,		a.nr_turno 
 ,		a.cd_tipo_eleicao 
@@ -96,4 +94,4 @@ SELECT	a.ano_eleicao
 ,		COALESCE(a.nr_junta_apuradora, -9999) AS nr_junta_apuradora 
 ,		COALESCE(a.nr_turma_apuradora, -9999) AS nr_turma_apuradora
 FROM	stg_boletim a
-WHERE	a.nm_municipio = 'VITÓRIA'w
+WHERE	a.nm_municipio = 'VITÓRIA'
