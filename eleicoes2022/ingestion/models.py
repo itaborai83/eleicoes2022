@@ -3,6 +3,64 @@ import pandas as pd
 from dataclasses import dataclass
 from datetime import datetime, date, time
 import eleicoes2022.ingestion.config as config
+import eleicoes2022.lib.util as util
+
+def parse_field(field_txt, type, strip_quotes=True):
+    if strip_quotes:
+        field_txt = field_txt[1:-1] # remove double quotes
+    
+    if type == int:
+        if field_txt == "-1":
+            return None
+        return int(field_txt)
+    
+    elif type == str:
+        if field_txt == "#NULO#":
+            return None 
+        return field_txt
+         
+    elif type == date:
+        if field_txt == "#NULO#":
+            return None 
+        return datetime.strptime(field_txt, config.IMPORT_DATE_MASK).date()
+        
+    elif type == time:
+        if field_txt == "#NULO#":
+            return None 
+        return datetime.strptime(field_txt, config.IMPORT_TIME_MASK).time()
+    
+    elif type == datetime:
+        if field_txt == "#NULO#" or field_txt == '': # mal formed field??
+            return None 
+        return datetime.strptime(field_txt, config.IMPORT_DATETIME_MASK)
+    raise ValueError(f"unexpected field type: {type}")
+
+@dataclass
+class ZonaEleitoralCsv:
+    nr_zona                     : int  
+    cod_processual              : str
+    endereco                    : str
+    cep                         : str
+    bairro                      : str
+    nome_municipio              : str
+    sg_uf                       : str
+    latitude                    : None
+    longitude                   : None
+    
+    @classmethod
+    def from_csv_row(klass, line):
+        fields = util.parse_csv_line(line, sep=",", quote="\"")
+        return klass(
+            nr_zona                     = parse_field(fields[0].lstrip('0'), int, strip_quotes=False)  
+        ,   cod_processual              = parse_field(fields[1], str, strip_quotes=False)
+        ,   endereco                    = parse_field(fields[2], str, strip_quotes=False)
+        ,   cep                         = parse_field(fields[3], str, strip_quotes=False)
+        ,   bairro                      = parse_field(fields[4], str, strip_quotes=False)
+        ,   nome_municipio              = parse_field(fields[5], str, strip_quotes=False)
+        ,   sg_uf                       = parse_field(fields[6], str, strip_quotes=False)
+        ,   latitude                    = None
+        ,   longitude                   = None
+        )    
 
 @dataclass
 class BoletimUrnaCsv:
@@ -185,9 +243,3 @@ class BoletimUrnaCsv:
         ,   'nr_junta_apuradora'            : [ b.nr_junta_apuradora            for b in boletins ]
         ,   'nr_turma_apuradora'            : [ b.nr_turma_apuradora            for b in boletins ]
         })
-
-
-if __name__ == '__main__':
-    test_line = '"05/10/2022";"15:26:45";"2022";"0";"Eleição Ordinária";"406";"02/10/2022";"1";"546";"Eleições Gerais Estaduais 2022";"RS";"88013";"PORTO ALEGRE";"1";"1";"1422";"6";"Deputado Federal";"11";"PP";"PROGRESSISTAS";"02/10/2022 18:55:58";"354";"280";"74";"1";"APURADA";"1";"Nominal";"1100";"DR MARCOS";"1";"2215453";"787.689.897.600.495.174.";"531.998";"A9CA01B1";"22/09/2022 14:12:00";"6 - 1";"#NULO#";"02/10/2022 08:00:01";"02/10/2022 17:01:25";"15";"02/10/2022 17:04:05";"-1";"-1"'
-    boletim = BoletimUrnaCsv.from_csv_row(test_line)
-    print(boletim)

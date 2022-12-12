@@ -17,7 +17,7 @@ WITH source_data AS (
 			--
 	,		sg_uf || '-' || cd_municipio || '-' || nr_zona || '-' || nr_secao AS local_id
 			--
-	,		sg_uf || '-' || cd_municipio || '-' || nr_zona || '-' || nr_secao || '-' || cd_eleicao AS participacao_id
+	,		sg_uf || '-' || cd_municipio || '-' || nr_zona || '-' || nr_secao || '-' || cd_eleicao || '-' || cd_pleito AS participacao_id
 			--
 	,		sg_uf || '-' || cd_cargo_pergunta || '-' || cd_tipo_votavel || '-' || COALESCE(nr_partido, 99) || '-' || nr_votavel AS votavel_id
 			--

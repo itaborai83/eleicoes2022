@@ -5,7 +5,7 @@ import eleicoes2022.lib.util as util
 
 logger = util.get_logger('ingestion.repositories')
 
-class BaseBoletimRepository:
+class BaseIngestionRepository:
 
     def clear_staging(self):
         raise NotImplementedError
@@ -13,10 +13,11 @@ class BaseBoletimRepository:
     def load_staging(self, boletins):
         raise NotImplementedError
     
-class BoletimRepository(BaseBoletimRepository):
+class IngestionRepository(BaseIngestionRepository):
     
-    BATCH_SIZE = 10000
-    CLEAR_STAGING_SQL = "DELETE FROM stg_boletim"
+    BATCH_SIZE = 25000
+    CLEAR_STAGING_BOLETINS_SQL = "DELETE FROM stg_boletim"
+    CLEAR_STAGING_ZONAS_ELEITORAIS_SQL = "DELETE FROM stg_zonas_eleitorais"
     IMPORT_BOLETIM_SQL = dedent("""\
         INSERT INTO stg_boletim(
             dt_geracao
@@ -112,6 +113,30 @@ class BoletimRepository(BaseBoletimRepository):
         ,   %s -- nr_turma_apuradora
         ); 
     """)
+
+    IMPORT_ZONA_ELEITORAL_SQL = dedent("""\
+        INSERT INTO stg_zonas_eleitorais(
+            sg_uf
+        ,   nr_zona
+        ,   cod_processual
+        ,   endereco
+        ,   cep
+        ,   bairro
+        ,   nome_municipio
+        ,   latitude
+        ,   longitude
+        ) VALUES (
+            %s -- sg_uf
+        ,   %s -- nr_zona
+        ,   %s -- cod_processual
+        ,   %s -- endereco
+        ,   %s -- cep
+        ,   %s -- bairro
+        ,   %s -- nome_municipio
+        ,   %s -- latitude
+        ,   %s -- longitude
+        ); 
+    """)
     
     def __init__(self, conn):
         self.conn = conn
@@ -125,10 +150,21 @@ class BoletimRepository(BaseBoletimRepository):
     def rollback(self):
         self.conn.rollback()
         
-    def clear_staging(self):
-        self.conn.execute(self.CLEAR_STAGING_SQL)
-    
-    def insert_boletins(self, boletins):
+    def clear_staging_boletins(self, commit=True):
+        c = self.conn.cursor()
+        c.execute(self.CLEAR_STAGING_BOLETINS_SQL)
+        if commit:
+            self.conn.commit()
+        c.close()
+
+    def clear_staging_zonas_eleitorais(self, commit=True):
+        c = self.conn.cursor()
+        c.execute(self.CLEAR_STAGING_ZONAS_ELEITORAIS_SQL)
+        if commit:
+            self.conn.commit()
+        c.close()
+        
+    def insert_boletins(self, boletins, commit=True):
         acc = []
         cursor = self.conn.cursor()
         for i, boletim in enumerate(boletins):
@@ -136,6 +172,8 @@ class BoletimRepository(BaseBoletimRepository):
                 logger.info(f"inserting batch {i+1}")
                 cursor.executemany(self.IMPORT_BOLETIM_SQL, acc)
                 acc.clear()
+                if commit:
+                    self.conn.commit()
             params = (
                 boletim.dt_geracao.strftime(config.DATE_MASK)
             ,   boletim.hh_geracao.strftime(config.TIME_MASK)
@@ -173,13 +211,13 @@ class BoletimRepository(BaseBoletimRepository):
             ,   boletim.cd_carga_1_urna_efetivada
             ,   boletim.cd_carga_2_urna_efetivada
             ,   boletim.cd_flashcard_urna_efetivada
-            ,   boletim.dt_carga_urna_efetivada.strftime(config.DATETIME_MASK)
+            ,   boletim.dt_carga_urna_efetivada.strftime(config.DATETIME_MASK) if boletim.dt_carga_urna_efetivada else None
             ,   boletim.ds_cargo_pergunta_secao
             ,   boletim.ds_agregadas
             ,   boletim.dt_abertura.strftime(config.DATETIME_MASK) if boletim.dt_abertura else None
             ,   boletim.dt_encerramento.strftime(config.DATETIME_MASK) if boletim.dt_abertura else None
             ,   boletim.qt_eleitores_biometria_nh
-            ,   boletim.dt_emissao_bu.strftime(config.DATETIME_MASK)
+            ,   boletim.dt_emissao_bu.strftime(config.DATETIME_MASK) if boletim.dt_emissao_bu else None
             ,   boletim.nr_junta_apuradora
             ,   boletim.nr_turma_apuradora
             )
@@ -188,4 +226,34 @@ class BoletimRepository(BaseBoletimRepository):
             logger.info(f"inserting last batch")
             cursor.executemany(self.IMPORT_BOLETIM_SQL, acc)
             acc.clear()
+            self.conn.commit()
+        cursor.close()
+        
+    def insert_zonas_eleitorais(self, zonas, commit=True):
+        acc = []
+        cursor = self.conn.cursor()
+        for i, zona in enumerate(zonas):
+            if (i + 1) % self.BATCH_SIZE == 0:
+                logger.info(f"inserting batch {i+1}")
+                cursor.executemany(self.IMPORT_ZONA_ELEITORAL_SQL, acc)
+                acc.clear()
+                if commit:
+                    self.conn.commit()
+            params = (
+                zona.sg_uf
+            ,   zona.nr_zona
+            ,   zona.cod_processual
+            ,   zona.endereco
+            ,   zona.cep
+            ,   zona.bairro
+            ,   zona.nome_municipio
+            ,   zona.latitude
+            ,   zona.longitude
+            )
+            acc.append(params)
+        if len(acc) > 0:
+            logger.info(f"inserting last batch")
+            cursor.executemany(self.IMPORT_ZONA_ELEITORAL_SQL, acc)
+            acc.clear()
+            self.conn.commit()
         cursor.close()

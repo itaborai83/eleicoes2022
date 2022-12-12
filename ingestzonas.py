@@ -4,12 +4,12 @@ import sys
 import psycopg2
 
 from eleicoes2022.ingestion.repositories import IngestionRepository
-from eleicoes2022.ingestion.models import BoletimUrnaCsv
+from eleicoes2022.ingestion.models import ZonaEleitoralCsv
 from eleicoes2022.ingestion.services import IngestionService
 import eleicoes2022.lib.util as util
 import eleicoes2022.config as config
 
-logger = util.get_logger('ingestcsv')
+logger = util.get_logger('ingestzonas')
 
 def build_deps():
     logger.info('assembling dependencies')
@@ -20,12 +20,12 @@ def build_deps():
     
 def main(csvpath, clear):
     conn, repo, svc = build_deps()
-    logger.info('starting csv ingestion tool')
+    logger.info('starting zona eleitoral ingestion tool')
     try:
-        boletins = svc.read_zip_boletins(csvpath)
+        zonas = svc.read_csv_zonas(csvpath)
         if clear:
-            svc.clear_staging_boletins()
-        svc.load_staging_boletins(boletins)
+            svc.clear_staging_zonas_eleitorais()
+        svc.load_staging_zonas_eleitorais(zonas)
         repo.commit()
     except:
         logger.exception('a fatal error has occurred')
