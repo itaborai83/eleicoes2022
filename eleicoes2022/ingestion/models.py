@@ -36,6 +36,14 @@ def parse_field(field_txt, type, strip_quotes=True):
     raise ValueError(f"unexpected field type: {type}")
 
 @dataclass
+class CachedValue:
+    cache_key                   : str
+    entry_type                  : str
+    cache_value                 : str
+    cached_at                   : str
+    expire_at                   : str
+
+@dataclass
 class ZonaEleitoralCsv:
     nr_zona                     : int  
     cod_processual              : str
@@ -44,9 +52,13 @@ class ZonaEleitoralCsv:
     bairro                      : str
     nome_municipio              : str
     sg_uf                       : str
-    latitude                    : None
-    longitude                   : None
+    endereco_formatado          : str
+    latitude                    : str
+    longitude                   : str
     
+    def geocode_address(self):
+        return f"{self.endereco}, {self.bairro}, {self.cep}, {self.nome_municipio}, Brasil"
+        
     @classmethod
     def from_csv_row(klass, line):
         fields = util.parse_csv_line(line, sep=",", quote="\"")
@@ -58,6 +70,7 @@ class ZonaEleitoralCsv:
         ,   bairro                      = parse_field(fields[4], str, strip_quotes=False)
         ,   nome_municipio              = parse_field(fields[5], str, strip_quotes=False)
         ,   sg_uf                       = parse_field(fields[6], str, strip_quotes=False)
+        ,   endereco_formatado          = None
         ,   latitude                    = None
         ,   longitude                   = None
         )    

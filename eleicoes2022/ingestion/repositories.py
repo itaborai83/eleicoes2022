@@ -1,19 +1,87 @@
 # -*- coding: utf-8 -*-
 from textwrap import dedent
+import eleicoes2022.ingestion.models as models
 import eleicoes2022.ingestion.config as config
 import eleicoes2022.lib.util as util
 
 logger = util.get_logger('ingestion.repositories')
 
-class BaseIngestionRepository:
+class CacheRepository:
+    
+    INSERT_SQL = dedent("""\
+        INSERT INTO cached_values(
+            entry_type
+        ,   cache_key
+        ,   cache_value
+        ,   cached_at
+        ,   expire_at
+        ) VALUES (
+            %s -- entry_type
+        ,   %s -- cache_key
+        ,   %s -- cache_value
+        ,   TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS') -- cached_at
+        ,   TO_CHAR(CURRENT_TIMESTAMP + '365 days'::interval, 'YYYY-MM-DD HH24:MI:SS') -- expire_at            
+        )
+        ON CONFLICT(entry_type, cache_key) DO
+        UPDATE SET 
+            cache_value = EXCLUDED.cache_value
+        ,   cached_at   = EXCLUDED.cached_at
+        ,   expire_at   = EXCLUDED.expire_at
+        """)
+    
+    GET_SQL = dedent("""\
+        SELECT
+            entry_type
+        ,   cache_key
+        ,   cache_value
+        ,   cached_at
+        ,   expire_at
+        FROM
+            cached_values
+        WHERE
+            entry_type  = %s
+        AND 
+            cache_key   = %s
+        AND 
+            expire_at   >= TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')
+        """)
+    
+    EXPIRE_STALE_SQL = dedent("""\
+        DELETE
+        FROM   
+            cached_values            
+        WHERE
+            expire_at < TO_CHAR(CURRENT_TIMESTAMP, 'YYYY-MM-DD HH24:MI:SS') 
+        """)
 
-    def clear_staging(self):
-        raise NotImplementedError
+    def __init__(self, conn):
+        self.conn = conn
     
-    def load_staging(self, boletins):
-        raise NotImplementedError
+    def put(self, entry_type, key, value):
+        c = self.conn.cursor()
+        params = (entry_type, key, value)
+        c.execute(self.INSERT_SQL, params)
+        c.close()
+        self.conn.commit()
+        
+    def get(self, entry_type, key):
+        c = self.conn.cursor()
+        params = (entry_type, key)
+        c.execute(self.GET_SQL, params)
+        row = c.fetchone()
+        c.close()
+        if row is None:
+            return row
+        _entry_type, _key, value, _cached_at, _expire_at = row        
+        return value
     
-class IngestionRepository(BaseIngestionRepository):
+    def expire_stale(self):
+        c = self.conn.cursor()
+        c.execute(self.EXPIRE_STALE_SQL)
+        c.close()
+        self.conn.commit()       
+    
+class IngestionRepository:
     
     BATCH_SIZE = 25000
     CLEAR_STAGING_BOLETINS_SQL = "DELETE FROM stg_boletim"
@@ -123,6 +191,7 @@ class IngestionRepository(BaseIngestionRepository):
         ,   cep
         ,   bairro
         ,   nome_municipio
+        ,   endereco_formatado
         ,   latitude
         ,   longitude
         ) VALUES (
@@ -133,6 +202,7 @@ class IngestionRepository(BaseIngestionRepository):
         ,   %s -- cep
         ,   %s -- bairro
         ,   %s -- nome_municipio
+        ,   %s -- endereco_formatado
         ,   %s -- latitude
         ,   %s -- longitude
         ); 
@@ -247,6 +317,7 @@ class IngestionRepository(BaseIngestionRepository):
             ,   zona.cep
             ,   zona.bairro
             ,   zona.nome_municipio
+            ,   zona.endereco_formatado
             ,   zona.latitude
             ,   zona.longitude
             )

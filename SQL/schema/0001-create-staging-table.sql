@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS stg_boletim(
 ,	nr_junta_apuradora				INTEGER
 ,	nr_turma_apuradora				INTEGER
 );
+
 -- DROP TABLE stg_zonas_eleitorais
 CREATE TABLE IF NOT EXISTS stg_zonas_eleitorais(
 	sg_uf                       	TEXT
@@ -58,9 +59,21 @@ CREATE TABLE IF NOT EXISTS stg_zonas_eleitorais(
 ,   cep                         	TEXT
 ,   bairro                      	TEXT
 ,   nome_municipio              	TEXT
-,	latitude						FLOAT
+,	endereco_formatado				TEXT
 ,	longitude						FLOAT
+,	latitude                        FLOAT
 );
+
+-- DROP TABLE cached_values
+CREATE TABLE IF NOT EXISTS cached_values(
+   	entry_type                  	TEXT
+,   cache_key                   	TEXT
+,   cache_value                 	TEXT
+,   cached_at                   	TEXT
+,   expire_at                   	TEXT
+,	PRIMARY KEY(entry_type, cache_key)
+);
+
 /*
 ---------------------------------------------------------------------------------------------------
 -- Eleição

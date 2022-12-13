@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import zipfile
 import pandas as pd
 from eleicoes2022.ingestion.models import ZonaEleitoralCsv, BoletimUrnaCsv
@@ -12,8 +13,9 @@ class IngestionService:
     
     CSV_ENCODING = "latin-1"
     
-    def __init__(self, repo):
+    def __init__(self, repo, map_svc):
         self.repo = repo
+        self.map_svc = map_svc
     
     def parse_boletim(self, buffer):
         line = buffer.decode(self.CSV_ENCODING)
@@ -94,4 +96,48 @@ class IngestionService:
         
     def load_staging_zonas_eleitorais(self, zonas, commit=True):
         logger.info("loading table")
+        zonas = list(zonas)
+        for zona in zonas:
+            address  = zona.geocode_address()
+            logger.info(f"geocoding address: {address}")
+            result = self.map_svc.geocode(address)
+            zona.endereco_formatado = result[0]['formatted_address']
+            zona.latitude = result[0]['geometry']['location']['lat']
+            zona.longitude = result[0]['geometry']['location']['lng']
         self.repo.insert_zonas_eleitorais(zonas, commit=commit)
+
+class CacheService:
+
+    def __init__(self, repo):
+        self.repo = repo
+        
+    def put(self, entry_type, key, value):
+        return self.repo.put(entry_type, key, value)
+    
+    def get(self, entry_type, key):
+        return self.repo.get(entry_type, key)
+    
+    def expire_stale(self):
+        return self.repo.expire_stale()
+        
+    def commit(self):
+        self.conn.commit()
+    
+    def rollback(self):
+        self.conn.rollback()
+
+class MapService:
+    
+    ENTRY_TYPE =  "MAPS::GEOCODE"
+    
+    def __init__(self, client, cache):
+        self.client = client
+        self.cache = cache
+    
+    def geocode(self, address):
+        result = self.cache.get(self.ENTRY_TYPE, address)
+        if result:
+            return json.loads(result)
+        result = self.client.geocode(address)
+        self.cache.put(self.ENTRY_TYPE, address, json.dumps(result))
+        
