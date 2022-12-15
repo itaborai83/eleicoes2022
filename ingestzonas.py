@@ -43,6 +43,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--clear', action='store_true', help='purge staging table first')
     parser.add_argument('csvpath', type=str, help='input csv file path')
-    parser.add_argument('csvpath', type=str, help='input csv file path')
     args = parser.parse_args()
     main(args.csvpath, args.clear)

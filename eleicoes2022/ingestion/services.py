@@ -97,6 +97,7 @@ class IngestionService:
     def load_staging_zonas_eleitorais(self, zonas, commit=True):
         logger.info("loading table")
         zonas = list(zonas)
+        result = self.map_svc.geocode("Brasil")
         for zona in zonas:
             address  = zona.geocode_address()
             logger.info(f"geocoding address: {address}")
