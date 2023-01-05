@@ -118,7 +118,7 @@ class MapService:
         ok, coords = self._read_cached_coords(address)
         if ok:
             lat, lng = coords
-            return lat, lng
+            return True, (lat, lng)
           
         if self.cache_only:
             raise ValueError("attempting to geocode on 'cache_only=True' mode")
@@ -161,9 +161,11 @@ class App:
                 if not was_seen:
                     self.map_service.update(address, lat, lng)
             else:
-                if not was_seen:
-                    ok, coords = self.map_service.geocode(address)
-                    logger.info(f'geocoding result: ok={ok} / coords={coords}')
+                #if not was_seen:
+                ok, coords = self.map_service.geocode(address)
+                logger.info(f'geocoding result: ok={ok} / coords={coords}')
+                if ok:
+                    lat, lng = coords
             logger.info(f"*** {i+1} *** > ({lat}, {lng}) {address}")
             lats.append(lat)
             lngs.append(lng)
