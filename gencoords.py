@@ -97,6 +97,12 @@ class MapService:
         else:
             result = self.client.geocode(address)
             self.cache.set(api_call_key, result)
+        
+        if len(result) == 0:
+            logger.warn(f'failed geocoding result for {address}')
+            self.update(address, -1, -1)
+            return -1, -1
+            
         lat = result[0]['geometry']['location']['lat']
         lng = result[0]['geometry']['location']['lng']
         self.update(address, lat, lng)
@@ -128,14 +134,28 @@ class App:
     def read_input_file(self, input_file):
         logger.info(f"reading input file '{input_file}'")
         eleitorado_df = pd.read_csv(input_file, sep=";", encoding="latin-1")
+        logger.info(eleitorado_df.info())
         return eleitorado_df
-        
+    
     def run(self, input_file, output_file):
         logger.info('starting eleitorado geocoding tool')
         eleitorado_df = self.read_input_file(input_file)
+        seen = set()
         for i, row in enumerate(eleitorado_df.itertuples()):
-            print(f"{i+1} > {row}")
-        #ok, coords = self.map_service.geocode("Rua João da Cruz 70, apt 701, Vitória, Espírito Santo, Brasil")
+            if i > 1000000:
+                sys.exit()
+            address = f"{row.NM_BAIRRO} - {row.NM_MUNICIPIO} - {row.SG_UF}"
+            if address in seen:
+                continue
+            lat, lng = float(row.NR_LATITUDE), float(row.NR_LONGITUDE)
+            if (lat, lng) != (-1.0, -1.0):
+                #logger.info(f'address {address} is already geocoded')
+                self.map_service.update(address, lat, lng)
+            else:
+                ok, coords = self.map_service.geocode(address)
+                logger.info('geocoding result: ok={ok} / coords={coords}')
+            logger.info(f"{i+1} > ({lat}, {lng}) {address}")
+            seen.add(address)
         logger.info('finished')
 
 def main(input_file, output_file, cache_file):
