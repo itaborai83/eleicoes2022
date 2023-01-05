@@ -127,7 +127,9 @@ class MapService:
         return True, (lat, lng)
         
 class App:
-
+    
+    MAX_ROWS = 1000000
+    
     def __init__(self, map_service):
         self.map_service = map_service
     
@@ -139,23 +141,42 @@ class App:
     
     def run(self, input_file, output_file):
         logger.info('starting eleitorado geocoding tool')
+        assert input_file.endswith(".csv")
+        assert output_file.endswith(".parquet")
         eleitorado_df = self.read_input_file(input_file)
         seen = set()
+        lats = []
+        lngs = []
         for i, row in enumerate(eleitorado_df.itertuples()):
-            if i > 1000000:
-                sys.exit()
+            if i > self.MAX_ROWS: 
+                logger.error(f"max rows reached - {self.MAX_ROWS}")
+                sys.exit(-1)
             address = f"{row.NM_BAIRRO} - {row.NM_MUNICIPIO} - {row.SG_UF}"
-            if address in seen:
-                continue
+            was_seen = address in seen
+            #if was_seen:
+            #    continue
             lat, lng = float(row.NR_LATITUDE), float(row.NR_LONGITUDE)
             if (lat, lng) != (-1.0, -1.0):
                 #logger.info(f'address {address} is already geocoded')
-                self.map_service.update(address, lat, lng)
+                if not was_seen:
+                    self.map_service.update(address, lat, lng)
             else:
-                ok, coords = self.map_service.geocode(address)
-                logger.info('geocoding result: ok={ok} / coords={coords}')
-            logger.info(f"{i+1} > ({lat}, {lng}) {address}")
+                if not was_seen:
+                    ok, coords = self.map_service.geocode(address)
+                    logger.info(f'geocoding result: ok={ok} / coords={coords}')
+            logger.info(f"*** {i+1} *** > ({lat}, {lng}) {address}")
+            lats.append(lat)
+            lngs.append(lng)
             seen.add(address)
+        logger.info('updating lat column')
+        eleitorado_df['NR_LATITUDE'] = lats
+        
+        logger.info('updating lng column')
+        eleitorado_df['NR_LONGITUDE'] = lngs
+        
+        logger.info(f'exporting file to parquet')
+        eleitorado_df.to_parquet(output_file)
+        
         logger.info('finished')
 
 def main(input_file, output_file, cache_file):
