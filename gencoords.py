@@ -7,6 +7,7 @@ import dbm.gnu
 import json
 import googlemaps
 import pandas as pd
+import pprint
 
 MAPS_APIKEY         = os.environ['MAPS_APIKEY']
 INPUT_FILE_SEP      = ";"
@@ -26,7 +27,7 @@ class Cache:
     def __init__(self, cache_file):
         self.cache_file = cache_file
         self.db = None
-        
+    
     def open(self):
         assert self.db is None
         assert self.cache_file.endswith(".db")
@@ -55,6 +56,21 @@ class Cache:
         logger.info(f'removing entry {key} from cache')
         bin_key = key.encode()
         del self.db[bin_key]
+    
+    def reset_counter(self, name):
+        key = f"counter::{name}".encode()
+        self.db[key] = 0
+        
+    def read_counter(self, name):
+        key = f"counter::{name}".encode()
+        value = self.db.get(key, "0")
+        return int(value)
+    
+    def increment_counter(self, name):
+        key = f"counter::{name}".encode()
+        curr = self.read_counter(name)
+        self.db[key] = str(curr + 1)
+        return curr + 1
         
     def close(self):
         assert self.db is not None
@@ -95,11 +111,16 @@ class MapService:
         if result is not None:
             logger.info(f"found cached api call result")
         else:
+            #assert 1 == 2 # do not call api
+            num_calls = self.cache.increment_counter("api-calls")
             result = self.client.geocode(address)
             self.cache.set(api_call_key, result)
+            logger.info(f"\n\n---->>>> NUMBER OF API CALLS MADE SO FAR: {num_calls} <<<<----\n\n")
+        
+        #pprint.pprint(result)
         
         if len(result) == 0:
-            logger.warn(f'failed geocoding result for {address}')
+            logger.warn(f'--->>> FAILED GEOCODING RESULT FOR {address}')
             self.update(address, -1, -1)
             return -1, -1
             
@@ -116,19 +137,19 @@ class MapService:
     def geocode(self, address):
         logger.info(f"geocoding address '{address}'")     
         ok, coords = self._read_cached_coords(address)
-        if ok:
+        if ok and False:
             lat, lng = coords
-            return True, (lat, lng)
+            return True, True, (lat, lng)
           
         if self.cache_only:
             raise ValueError("attempting to geocode on 'cache_only=True' mode")
         
         lat, lng = self._make_api_call(address)
-        return True, (lat, lng)
+        return True, False, (lat, lng)
         
 class App:
     
-    MAX_ROWS = 1000000
+    MAX_ROWS = 1_0000_000
     
     def __init__(self, map_service):
         self.map_service = map_service
@@ -148,28 +169,39 @@ class App:
         lats = []
         lngs = []
         for i, row in enumerate(eleitorado_df.itertuples()):
+            
             if i > self.MAX_ROWS: 
                 logger.error(f"max rows reached - {self.MAX_ROWS}")
                 sys.exit(-1)
-            address = f"{row.NM_BAIRRO} - {row.NM_MUNICIPIO} - {row.SG_UF}"
+            
+            bairro      = row.NM_BAIRRO.strip().upper()
+            municipio   = row.NM_MUNICIPIO.strip().upper()
+            estado      = row.SG_UF.strip().upper()
+            lat         = float(row.NR_LATITUDE)
+            lng         = float(row.NR_LONGITUDE)
+            
+            if estado == "ZZ":
+                lats.append(lat)
+                lngs.append(lng)
+                continue
+            
+            address = f"{bairro}, {municipio} - {estado}, BRASIL"
             was_seen = address in seen
-            #if was_seen:
-            #    continue
-            lat, lng = float(row.NR_LATITUDE), float(row.NR_LONGITUDE)
-            if (lat, lng) != (-1.0, -1.0):
+            if lat != -1 and lng != -1.0:
                 #logger.info(f'address {address} is already geocoded')
                 if not was_seen:
                     self.map_service.update(address, lat, lng)
             else:
                 #if not was_seen:
-                ok, coords = self.map_service.geocode(address)
-                logger.info(f'geocoding result: ok={ok} / coords={coords}')
+                ok, cached, coords = self.map_service.geocode(address)
+                logger.info(f'geocoding result: ok={ok} / cached={cached} / coords={coords}')
                 if ok:
                     lat, lng = coords
             logger.info(f"*** {i+1} *** > ({lat}, {lng}) {address}")
             lats.append(lat)
             lngs.append(lng)
             seen.add(address)
+        
         logger.info('updating lat column')
         eleitorado_df['NR_LATITUDE'] = lats
         
